@@ -2,12 +2,37 @@ version: "3.8"
 
 # Lese sensible Credentials aus einer .env-Datei (nicht versioniert).
 # Kopiere .env.example zu .env und passe die Werte an.
+# Ohne .env werden eingebaute Entwicklungs-Standardwerte verwendet.
 
 services:
   # -------------------------------------------------------
+  # DB-Init-Service: läuft einmalig nach jedem Start.
+  # Legt Datenbank + Benutzer an (idempotent) und spielt
+  # db_setup.sql ein – funktioniert auch bei vorhandenem
+  # db_data-Volume aus einem früheren, fehlgeschlagenen Start.
+  # -------------------------------------------------------
+  db-init:
+    image: mariadb:11.4
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-printmanager}
+      DB_USER: ${DB_USER:-erp_user}
+      DB_PASS: ${DB_PASS:-erp_secret_pass}
+      DB_ROOT_PASS: ${DB_ROOT_PASS:-root_erp_pass}
+    volumes:
+      - ./init-db.sh:/init-db.sh:ro
+      - ./db_setup.sql:/db_setup.sql:ro
+    command: bash /init-db.sh
+    networks:
+      - app-net
+    restart: on-failure   # Bei transientem Fehler automatisch neu versuchen
+
+  # -------------------------------------------------------
   # Web-Service: PHP 8.3 mit Apache
-  # Wird aus dem lokalen Dockerfile gebaut, das pdo_mysql
-  # und alle weiteren benötigten PHP-Erweiterungen installiert.
+  # Startet erst nachdem db-init erfolgreich abgeschlossen hat.
   # -------------------------------------------------------
   web:
     build:
@@ -28,8 +53,10 @@ services:
       DB_USER: ${DB_USER:-erp_user}
       DB_PASS: ${DB_PASS:-erp_secret_pass}
     depends_on:
-      db:
-        condition: service_healthy   # Warten bis MariaDB wirklich bereit ist
+      db-init:
+        condition: service_completed_successfully
+    networks:
+      - app-net
     restart: unless-stopped
 
   # -------------------------------------------------------
@@ -48,7 +75,7 @@ services:
     volumes:
       # Datenbankdaten persistent speichern
       - db_data:/var/lib/mysql
-      # Initialisierungs-SQL beim ersten Start automatisch ausführen
+      # Initialisierungs-SQL beim allerersten Start ausführen
       - ./db_setup.sql:/docker-entrypoint-initdb.d/db_setup.sql:ro
     healthcheck:
       # Prüft ob MariaDB Verbindungen akzeptiert, bevor der web-Service startet
@@ -57,7 +84,12 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+    networks:
+      - app-net
     restart: unless-stopped
+
+networks:
+  app-net:   # Explizites Netzwerk: alle Services können sich per Hostname erreichen
 
 volumes:
   db_data:   # Benanntes Volume für persistente Datenbankdaten
