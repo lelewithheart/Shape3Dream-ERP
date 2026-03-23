@@ -6,14 +6,20 @@ version: "3.8"
 services:
   # -------------------------------------------------------
   # Web-Service: PHP 8.3 mit Apache
+  # Wird aus dem lokalen Dockerfile gebaut, das pdo_mysql
+  # und alle weiteren benötigten PHP-Erweiterungen installiert.
   # -------------------------------------------------------
   web:
-    image: php:8.3-apache
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: printmanager_web
     ports:
       - "8080:80"          # Lokaler Port 8080 → Container Port 80
     volumes:
-      - ./html:/var/www/html   # Quellcode live in den Container einbinden
+      # Volume überschreibt den COPY-Schritt im Dockerfile,
+      # sodass Code-Änderungen ohne Rebuild sofort aktiv sind.
+      - ./html:/var/www/html
     environment:
       # Datenbankverbindungs-Daten (werden aus .env geladen)
       DB_HOST: db
@@ -21,7 +27,8 @@ services:
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
     depends_on:
-      - db
+      db:
+        condition: service_healthy   # Warten bis MariaDB wirklich bereit ist
     restart: unless-stopped
 
   # -------------------------------------------------------
@@ -40,6 +47,13 @@ services:
       - db_data:/var/lib/mysql
       # Initialisierungs-SQL beim ersten Start automatisch ausführen
       - ./db_setup.sql:/docker-entrypoint-initdb.d/db_setup.sql:ro
+    healthcheck:
+      # Prüft ob MariaDB Verbindungen akzeptiert, bevor der web-Service startet
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     restart: unless-stopped
 
 volumes:
