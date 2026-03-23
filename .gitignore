@@ -1,0 +1,18 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# SQLite database (runtime data)
+*.db
+*.db-journal
+
+# Generated invoices (runtime output)
+Rechnungen/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
