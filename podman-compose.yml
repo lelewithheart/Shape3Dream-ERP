@@ -1,0 +1,46 @@
+version: "3.8"
+
+# Lese sensible Credentials aus einer .env-Datei (nicht versioniert).
+# Kopiere .env.example zu .env und passe die Werte an.
+
+services:
+  # -------------------------------------------------------
+  # Web-Service: PHP 8.3 mit Apache
+  # -------------------------------------------------------
+  web:
+    image: php:8.3-apache
+    container_name: printmanager_web
+    ports:
+      - "8080:80"          # Lokaler Port 8080 → Container Port 80
+    volumes:
+      - ./html:/var/www/html   # Quellcode live in den Container einbinden
+    environment:
+      # Datenbankverbindungs-Daten (werden aus .env geladen)
+      DB_HOST: db
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  # -------------------------------------------------------
+  # Datenbank-Service: MariaDB (pinned Version für Stabilität)
+  # -------------------------------------------------------
+  db:
+    image: mariadb:11.4
+    container_name: printmanager_db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASS}
+    volumes:
+      # Datenbankdaten persistent speichern
+      - db_data:/var/lib/mysql
+      # Initialisierungs-SQL beim ersten Start automatisch ausführen
+      - ./db_setup.sql:/docker-entrypoint-initdb.d/db_setup.sql:ro
+    restart: unless-stopped
+
+volumes:
+  db_data:   # Benanntes Volume für persistente Datenbankdaten
