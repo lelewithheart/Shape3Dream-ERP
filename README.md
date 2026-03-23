@@ -9,21 +9,22 @@ Internes ERP-System für eine 3D-Druckerei. Reines PHP 8.3, MariaDB, Apache, Pic
 git clone <repo-url>
 cd Shape3Dream-ERP
 
-# 2. Umgebungsvariablen aus der Vorlage kopieren und Passwörter anpassen
-cp .env.example .env
-# → .env öffnen und DB_PASS / DB_ROOT_PASS auf sichere Werte setzen
-
-# 3. Container bauen und starten (installiert pdo_mysql automatisch)
+# 2. Container bauen und starten – funktioniert sofort ohne .env
 podman-compose up --build -d
 
-# 4. Im Browser öffnen
+# 3. Im Browser öffnen
 # http://localhost:8080
 # Login: admin / admin123  (Passwort nach erstem Login ändern!)
 ```
 
-Das Dockerfile installiert beim Build automatisch alle benötigten PHP-Erweiterungen
-(`pdo`, `pdo_mysql`, `mysqli`). Die Datenbank wird beim ersten Start durch
-`db_setup.sql` initialisiert.
+> **Optional – eigene Passwörter setzen (empfohlen für Produktion):**
+> ```bash
+> cp .env.example .env
+> # .env öffnen und DB_PASS / DB_ROOT_PASS auf sichere Werte setzen
+> podman-compose up --build -d
+> ```
+>
+> ⚠️ Die eingebauten Standardpasswörter sind **nur für lokale Entwicklung** gedacht — niemals in Produktion verwenden!
 
 ## Technologie-Stack
 

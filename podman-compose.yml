@@ -21,11 +21,12 @@ services:
       # sodass Code-Änderungen ohne Rebuild sofort aktiv sind.
       - ./html:/var/www/html
     environment:
-      # Datenbankverbindungs-Daten (werden aus .env geladen)
+      # Standardwerte gelten nur für die lokale Entwicklung.
+      # Für Produktion: cp .env.example .env und sichere Passwörter setzen!
       DB_HOST: db
-      DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASS: ${DB_PASS}
+      DB_NAME: ${DB_NAME:-printmanager}
+      DB_USER: ${DB_USER:-erp_user}
+      DB_PASS: ${DB_PASS:-erp_secret_pass}
     depends_on:
       db:
         condition: service_healthy   # Warten bis MariaDB wirklich bereit ist
@@ -38,10 +39,12 @@ services:
     image: mariadb:11.4
     container_name: printmanager_db
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS}
-      MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASS}
+      # Standardwerte gelten nur für die lokale Entwicklung.
+      # Für Produktion: cp .env.example .env und sichere Passwörter setzen!
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS:-root_erp_pass}
+      MYSQL_DATABASE: ${DB_NAME:-printmanager}
+      MYSQL_USER: ${DB_USER:-erp_user}
+      MYSQL_PASSWORD: ${DB_PASS:-erp_secret_pass}
     volumes:
       # Datenbankdaten persistent speichern
       - db_data:/var/lib/mysql
