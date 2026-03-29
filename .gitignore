@@ -1,0 +1,6 @@
+# Sensible Konfigurationsdatei – NIEMALS einchecken!
+.env
+
+# Laufzeitdateien
+*.log
+*.pid

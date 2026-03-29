@@ -1,0 +1,95 @@
+version: "3.8"
+
+# Lese sensible Credentials aus einer .env-Datei (nicht versioniert).
+# Kopiere .env.example zu .env und passe die Werte an.
+# Ohne .env werden eingebaute Entwicklungs-Standardwerte verwendet.
+
+services:
+  # -------------------------------------------------------
+  # DB-Init-Service: läuft einmalig nach jedem Start.
+  # Legt Datenbank + Benutzer an (idempotent) und spielt
+  # db_setup.sql ein – funktioniert auch bei vorhandenem
+  # db_data-Volume aus einem früheren, fehlgeschlagenen Start.
+  # -------------------------------------------------------
+  db-init:
+    image: mariadb:11.4
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-printmanager}
+      DB_USER: ${DB_USER:-erp_user}
+      DB_PASS: ${DB_PASS:-erp_secret_pass}
+      DB_ROOT_PASS: ${DB_ROOT_PASS:-root_erp_pass}
+    volumes:
+      - ./init-db.sh:/init-db.sh:ro
+      - ./db_setup.sql:/db_setup.sql:ro
+    command: bash /init-db.sh
+    networks:
+      - app-net
+    restart: on-failure   # Bei transientem Fehler automatisch neu versuchen
+
+  # -------------------------------------------------------
+  # Web-Service: PHP 8.3 mit Apache
+  # Startet erst nachdem db-init erfolgreich abgeschlossen hat.
+  # -------------------------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: printmanager_web
+    ports:
+      - "8080:80"          # Lokaler Port 8080 → Container Port 80
+    volumes:
+      # Volume überschreibt den COPY-Schritt im Dockerfile,
+      # sodass Code-Änderungen ohne Rebuild sofort aktiv sind.
+      - ./html:/var/www/html
+    environment:
+      # Standardwerte gelten nur für die lokale Entwicklung.
+      # Für Produktion: cp .env.example .env und sichere Passwörter setzen!
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-printmanager}
+      DB_USER: ${DB_USER:-erp_user}
+      DB_PASS: ${DB_PASS:-erp_secret_pass}
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    networks:
+      - app-net
+    restart: unless-stopped
+
+  # -------------------------------------------------------
+  # Datenbank-Service: MariaDB (pinned Version für Stabilität)
+  # -------------------------------------------------------
+  db:
+    image: mariadb:11.4
+    container_name: printmanager_db
+    environment:
+      # Standardwerte gelten nur für die lokale Entwicklung.
+      # Für Produktion: cp .env.example .env und sichere Passwörter setzen!
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS:-root_erp_pass}
+      MYSQL_DATABASE: ${DB_NAME:-printmanager}
+      MYSQL_USER: ${DB_USER:-erp_user}
+      MYSQL_PASSWORD: ${DB_PASS:-erp_secret_pass}
+    volumes:
+      # Datenbankdaten persistent speichern
+      - db_data:/var/lib/mysql
+      # Initialisierungs-SQL beim allerersten Start ausführen
+      - ./db_setup.sql:/docker-entrypoint-initdb.d/db_setup.sql:ro
+    healthcheck:
+      # Prüft ob MariaDB Verbindungen akzeptiert, bevor der web-Service startet
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - app-net
+    restart: unless-stopped
+
+networks:
+  app-net:   # Explizites Netzwerk: alle Services können sich per Hostname erreichen
+
+volumes:
+  db_data:   # Benanntes Volume für persistente Datenbankdaten
